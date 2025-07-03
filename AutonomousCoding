@@ -1,4 +1,4 @@
-🧠 THE FULLY UPDATED AUTONOMOUS CURSOR MICRO-WORKFLOW (WITH FULL VISIBILITY + CI DEPLOYS)
+🧠 THE FULLY UPDATED AUTONOMOUS CURSOR MICRO-WORKFLOW (WITH FULL VISIBILITY + CI DEPLOYS + SUPABASE)
 
 🛰️ STEP 0: VISIBILITY & CI PREVIEW SET-UP
 
@@ -22,6 +22,12 @@ Star your repo for easy access
 Connect repo to Vercel
 Enable Preview Deployments per PR
 Optional: add CLI deploy for final push
+✅ 0.5 Supabase Project Setup
+Create project at https://supabase.com/dashboard
+Get Project URL and Anon Key from Settings → API
+Generate Service Role key for admin operations
+Install Supabase CLI: npm install -g supabase
+Link local project: supabase link --project-ref YOUR_PROJECT_ID
 
 # CursorToDo
 🔧 STEP 1: PROJECT INFRASTRUCTURE SETUP
@@ -30,17 +36,25 @@ Optional: add CLI deploy for final push
 Tell Cursor how to install, start, and test inside the remote agent VM:
 
 {
-  "install": "rm -rf node_modules && pnpm install --prefer-offline --frozen-lockfile",
+  "install": "rm -rf node_modules && npm install -g supabase && pnpm install --prefer-offline --frozen-lockfile",
   "terminals": [
     { "name": "dev",    "command": "pnpm dev" },
     { "name": "test",   "command": "pnpm test" },
     { "name": "build",  "command": "pnpm build" },
     { "name": "lint",   "command": "pnpm lint" },
+    { "name": "db",     "command": "supabase start" },
+    { "name": "types",  "command": "supabase gen types typescript --local > src/types/database.types.ts" },
     { "name": "deploy", "command": "vercel --token $VERCEL_TOKEN --yes" }
   ]
 }
-Add VERCEL_TOKEN (or NETLIFY_AUTH_TOKEN) and SLACK_WEBHOOK under:
-Cursor UI → Project → Secrets
+Add these secrets in Cursor UI → Project → Secrets:
+- VERCEL_TOKEN
+- SLACK_WEBHOOK  
+- SUPABASE_URL
+- SUPABASE_ANON_KEY
+- SUPABASE_SERVICE_ROLE_KEY
+- SUPABASE_ACCESS_TOKEN (for CLI operations)
+
 ✅ 1.2 Define .cursor/rules
 Injected into every agent prompt:
 
@@ -67,6 +81,14 @@ Injected into every agent prompt:
 - The JOURNAL entry must be ≤ 20 lines
 - Always list modified paths relative to repo root
 - Before starting work, read docs/agent-log.md for previous agent context
+- Use Supabase for all database, auth, and real-time features
+- Generate TypeScript types from Supabase schema: supabase gen types typescript
+- Create database migrations for schema changes: supabase migration new <name>
+- Use Row Level Security (RLS) for all database tables
+- Prefer Supabase Edge Functions over traditional API routes when possible
+- Always test database operations with local Supabase instance first
+- Include database schema changes in JOURNAL entries
+
 ✅ 1.3 Git Setup
 git init
 git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
@@ -75,6 +97,7 @@ git add .
 git commit -m "Initial setup: Autonomous Cursor workflow infrastructure"
 git push -u origin main
 🚨 Agents require Git branches to push PRs
+
 ✅ 1.4 Create .gitignore
 # Dependencies
 node_modules/
@@ -89,33 +112,49 @@ out/
 # IDE
 .vscode/
 .idea/
-✅ 1.5 Create docs/agent-log.md
+# Supabase
+.supabase/
+
+✅ 1.5 Create Supabase Configuration
+supabase init
+supabase link --project-ref YOUR_PROJECT_ID
+echo "SUPABASE_URL=$SUPABASE_URL" > .env.local
+echo "SUPABASE_ANON_KEY=$SUPABASE_ANON_KEY" >> .env.local
+git add supabase/ .env.local && git commit -m "feat: add Supabase configuration" && git push
+
+✅ 1.6 Create docs/agent-log.md
 mkdir -p docs
 echo "# Agent Handoff Log\n\nContext persistence for autonomous agent workflows.\n" > docs/agent-log.md
 git add docs/agent-log.md && git commit -m "feat: add agent handoff log" && git push
-✅ 1.6 Persist "Memories" in Cursor
+
+✅ 1.7 Persist "Memories" in Cursor
 Go to Cursor IDE > Right Panel > Memories
 Add:
 
-"We use JWT for authentication, not sessions."
-"UI is built with React + Tailwind."
+"We use Supabase for database, auth, and real-time features."
+"Always generate TypeScript types from Supabase schema."
+"Use Row Level Security (RLS) for all database tables."
+"UI is built with React + Tailwind + DaisyUI dark mode."
 "Tests must run via pnpm test and show ✅ or ❌."
 "Deploy previews go through Vercel, echoing 🌐 PREVIEW_URL=<url>."
 "Always read docs/agent-log.md before starting work for context from previous agents."
+"Include database schema changes in JOURNAL entries."
 
 🗂 STEP 2: PREPARE DAILY TASK PLAN (external)
 
 Cursor doesn't read .md files — you paste each task into the agent queue.
 Example:
 
-## Agent: analytics-ui-agent
+## Agent: user-auth-agent
 
-1. Create /analytics React page  
-2. Add chart props and dummy bar chart  
-3. Build 3 test cases (render, empty, failure)  
-4. Run pnpm test  
-5. Retry on ❌  
-6. Submit PR
+1. Create Supabase auth table migration
+2. Add RLS policies for user data
+3. Create auth utilities in src/lib/supabase.ts
+4. Build login/signup components with DaisyUI
+5. Add auth state management
+6. Generate TypeScript types: supabase gen types typescript
+7. Run pnpm test
+8. Submit PR
 
 ### REFLECT
 Summarise progress  
@@ -129,6 +168,7 @@ Output them as ### NEXT_QUEUE
 ## <AGENT_NAME> – <YYYY-MM-DD HH:MM>
 - Scope: <high-level goal>
 - Key files touched: <list>
+- Database changes: <migrations/schema updates>
 - Tests: ✅ or ❌
 - Preview: <url>
 - Next tasks: <3 bullet points>
@@ -154,7 +194,7 @@ gh pr create --fill
 ✅ 3.1 Open Cursor + Wait for Project Indexing
 ✅ 3.2 Spawn Background Agent
 Ctrl + E → Background Agent
-Name it (e.g., analytics-api-agent)
+Name it (e.g., user-auth-agent)
 Paste: "Review docs/agent-log.md for context from previous agents, then continue with:"
 Paste initial prompt from backlog
 ✅ 3.3 Queue Prompts
@@ -207,6 +247,7 @@ Time	Action
 13:00	Review PRs on GitHub Mobile
 14:00–17:00	Queue next feature set
 17:00–18:00	Merge PRs, cleanup, archive
+
 🛠 COMMON ISSUES & FIXES
 
 Issue	Fix
@@ -217,6 +258,9 @@ No Slack pings	Check $SLACK_WEBHOOK is set + added in queue
 Agent tool-call limit hit	Use Max Mode or add @Cursor resume agent-name in Slack
 Agent ignores previous context	Ensure "Review docs/agent-log.md" is first in every agent prompt
 Context handoff broken	Check docs/agent-log.md exists and agents are appending (not overwriting)
+Supabase CLI not found	Ensure "npm install -g supabase" is in environment.json install command
+Database types out of sync	Run "supabase gen types typescript" after schema changes
+RLS policies blocking queries	Check policies allow authenticated users, test with service role key
 
 🎯 QUICK COPY-PASTE AGENT QUEUE TAIL
 
@@ -228,6 +272,7 @@ List 3 NEXT_QUEUE tasks for subsequent agents
 echo "## ${AGENT_NAME} – $(date -Iseconds)" >> docs/agent-log.md
 echo "- Scope: [describe high-level goal]" >> docs/agent-log.md  
 echo "- Files: [list key paths touched]" >> docs/agent-log.md
+echo "- Database: [migrations/schema changes]" >> docs/agent-log.md
 echo "- Tests: ${TEST_STATUS}" >> docs/agent-log.md
 echo "- Preview: ${PREVIEW_URL}" >> docs/agent-log.md
 echo "- Next: [3 bullet points from REFLECT]" >> docs/agent-log.md
@@ -247,3 +292,32 @@ git push --set-upstream origin $(git branch --show-current)
 gh pr create --fill
 
 ### EXIT_ON_SUCCESS
+
+🗄️ SUPABASE-SPECIFIC AGENT PATTERNS
+
+### Database Schema Agent:
+```
+1. Create migration: supabase migration new <feature_name>
+2. Add tables with RLS policies
+3. Generate types: supabase gen types typescript --local > src/types/database.types.ts
+4. Test with local Supabase: supabase start
+5. Commit schema + types
+```
+
+### Auth Flow Agent:
+```
+1. Review existing auth migration from docs/agent-log.md
+2. Create auth utilities in src/lib/supabase.ts
+3. Build login/signup components with proper TypeScript types
+4. Add protected route middleware
+5. Test auth flow with real Supabase instance
+```
+
+### Edge Function Agent:
+```
+1. Create function: supabase functions new <function_name>
+2. Implement with proper TypeScript types
+3. Deploy to local: supabase functions serve
+4. Add integration tests
+5. Deploy to production: supabase functions deploy
+```
