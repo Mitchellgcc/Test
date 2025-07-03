@@ -28,6 +28,11 @@ Get Project URL and Anon Key from Settings → API
 Generate Service Role key for admin operations
 Install Supabase CLI: npm install -g supabase
 Link local project: supabase link --project-ref YOUR_PROJECT_ID
+✅ 0.6 Essential Production Services
+**Sentry** (Error Tracking): Create project → copy DSN
+**Axiom** (Structured Logs): Create source → copy token
+**Upstash Redis** (Cache): Create database → copy REST URL + token
+Optional: **Resend** (Email): Add domain → verify DNS → create API key
 
 # CursorToDo
 🔧 STEP 1: PROJECT INFRASTRUCTURE SETUP
@@ -54,6 +59,12 @@ Add these secrets in Cursor UI → Project → Secrets:
 - SUPABASE_ANON_KEY
 - SUPABASE_SERVICE_ROLE_KEY
 - SUPABASE_ACCESS_TOKEN (for CLI operations)
+- SENTRY_DSN
+- AXIOM_TOKEN
+- UPSTASH_REDIS_REST_URL
+- UPSTASH_REDIS_REST_TOKEN
+Optional (if using email):
+- RESEND_API_KEY
 
 ✅ 1.2 Define .cursor/rules
 Injected into every agent prompt:
@@ -89,6 +100,11 @@ Injected into every agent prompt:
 - Always test database operations with hosted Supabase instance (local Docker unavailable in VM)
 - Include database schema changes in JOURNAL entries
 - Never output $SUPABASE_SERVICE_ROLE_KEY in console logs
+- Wrap all server/Edge functions with Sentry.init() and try-catch blocks
+- Use Axiom for structured logging; avoid console.log spam in production
+- Prefer Upstash Redis for ephemeral cache; never store PII
+- Cache expensive Supabase queries in Redis with TTL
+- Log errors and performance metrics to Axiom with structured data
 
 ✅ 1.3 Git Setup
 git init
@@ -128,7 +144,27 @@ mkdir -p docs
 echo "# Agent Handoff Log\n\nContext persistence for autonomous agent workflows.\n" > docs/agent-log.md
 git add docs/agent-log.md && git commit -m "feat: add agent handoff log" && git push
 
-✅ 1.7 Persist "Memories" in Cursor
+✅ 1.7 Create Production Monitoring Setup
+Create src/lib/monitoring.ts:
+```typescript
+// Sentry Error Tracking
+import * as Sentry from '@sentry/nextjs'
+export const initSentry = () => Sentry.init({ dsn: process.env.SENTRY_DSN })
+
+// Axiom Structured Logging  
+import { Axiom } from '@axiom-dev/js'
+export const axiom = new Axiom({ token: process.env.AXIOM_TOKEN })
+
+// Upstash Redis Cache
+import { Redis } from '@upstash/redis'
+export const redis = new Redis({
+  url: process.env.UPSTASH_REDIS_REST_URL,
+  token: process.env.UPSTASH_REDIS_REST_TOKEN
+})
+```
+git add src/lib/monitoring.ts && git commit -m "feat: add monitoring infrastructure" && git push
+
+✅ 1.8 Persist "Memories" in Cursor
 Go to Cursor IDE > Right Panel > Memories
 Add:
 
@@ -140,6 +176,9 @@ Add:
 "Deploy previews go through Vercel, echoing 🌐 PREVIEW_URL=<url>."
 "Always read docs/agent-log.md before starting work for context from previous agents."
 "Include database schema changes in JOURNAL entries."
+"Wrap all server functions with Sentry error tracking."
+"Use Axiom for structured logging, avoid console.log in production."
+"Cache expensive queries in Upstash Redis with TTL."
 
 🗂 STEP 2: PREPARE DAILY TASK PLAN (external)
 
@@ -154,8 +193,10 @@ Example:
 4. Build login/signup components with DaisyUI
 5. Add auth state management
 6. Generate TypeScript types: supabase gen types typescript --local > src/types/database.types.ts
-7. Run pnpm test
-8. Submit PR
+7. Add Sentry error tracking to auth functions
+8. Cache auth state in Redis with 1h TTL
+9. Run pnpm test
+10. Submit PR
 
 ### REFLECT
 Summarise progress  
@@ -172,6 +213,14 @@ printf "## %s – %s\n- Scope: %s\n- Key files touched: %s\n- Database changes: 
   "$TEST_STATUS" "$PREVIEW_URL" "[3 bullet points]" >> docs/agent-log.md
 
 3. Save file
+
+### MONITOR
+Log key metrics to Axiom:
+axiom.ingest('agent-metrics', { 
+  agent: '$AGENT_NAME', 
+  status: '$TEST_STATUS', 
+  preview_url: '$PREVIEW_URL' 
+})
 
 ### DEPLOY
 PREVIEW_URL=$(vercel --prod --scope $VERCEL_ORG --token $VERCEL_TOKEN --yes | tail -n1)
@@ -196,7 +245,7 @@ Name it (e.g., user-auth-agent)
 Paste: "Review docs/agent-log.md for context from previous agents, then continue with:"
 Paste initial prompt from backlog
 ✅ 3.3 Queue Prompts
-Paste remaining queue prompts, ending with REFLECT, JOURNAL, DEPLOY, NOTIFY, PUSH, and EXIT_ON_SUCCESS.
+Paste remaining queue prompts, ending with REFLECT, JOURNAL, MONITOR, DEPLOY, NOTIFY, PUSH, and EXIT_ON_SUCCESS.
 
 Monitor agent in Cursor Web, Slack, or desktop IDE.
 
@@ -207,6 +256,7 @@ if (passed) {
   console.log("✅ TESTS PASSED")
 } else {
   console.log("❌ TEST FAILURE")
+  Sentry.captureException(new Error("Test failure"))
 }
 ✅ 4.2 In Prompts
 Run pnpm test  
@@ -262,6 +312,10 @@ RLS policies blocking queries	Check policies allow authenticated users, test wit
 Docker unavailable in VM	Use hosted Supabase instance, skip supabase start --docker
 Migration creation prompts	Use "supabase migration new --name <slug> --no-editor"
 Service role key exposed	Never log $SUPABASE_SERVICE_ROLE_KEY in console output
+Sentry not initialized	Add Sentry.init() to app entry point
+Axiom logs not appearing	Check AXIOM_TOKEN is set and axiom.ingest() is called
+Redis cache misses	Check UPSTASH_REDIS_REST_URL and REST_TOKEN are correct
+Rate limit exceeded	Implement Redis-based rate limiting and caching
 
 🎯 QUICK COPY-PASTE AGENT QUEUE TAIL
 
@@ -274,6 +328,15 @@ printf "## %s – %s\n- Scope: %s\n- Files: %s\n- Database: %s\n- Tests: %s\n- P
   "$AGENT_NAME" "$(date -Iseconds)" \
   "[describe high-level goal]" "[list key paths]" "[migrations/schema]" \
   "$TEST_STATUS" "$PREVIEW_URL" "[3 bullet points from REFLECT]" >> docs/agent-log.md
+
+### MONITOR
+axiom.ingest('agent-metrics', { 
+  agent: '$AGENT_NAME', 
+  status: '$TEST_STATUS', 
+  files_touched: '[list]',
+  preview_url: '$PREVIEW_URL',
+  timestamp: new Date().toISOString()
+})
 
 ### DEPLOY
 PREVIEW_URL=$(vercel --prod --scope $VERCEL_ORG --token $VERCEL_TOKEN --yes | tail -n1)
@@ -299,23 +362,27 @@ gh pr create --fill
 3. Push schema: supabase db push
 4. Generate types: supabase gen types typescript --local > src/types/database.types.ts
 5. Test with hosted instance (Docker unavailable in VM)
-6. Commit schema + types
+6. Add Sentry error tracking to database functions
+7. Cache schema metadata in Redis
+8. Commit schema + types
 ```
 
 ### Auth Flow Agent:
 ```
 1. Review existing auth migration from docs/agent-log.md
-2. Create auth utilities in src/lib/supabase.ts
+2. Create auth utilities in src/lib/supabase.ts with Sentry wrapping
 3. Build login/signup components with proper TypeScript types
-4. Add protected route middleware
+4. Add protected route middleware with Redis session caching
 5. Test auth flow with hosted Supabase instance
+6. Log auth events to Axiom for monitoring
 ```
 
 ### Edge Function Agent:
 ```
 1. Create function: supabase functions new <function_name>
-2. Implement with proper TypeScript types
-3. Deploy to hosted: supabase functions deploy <function_name>
-4. Add integration tests
-5. Test with hosted instance
+2. Implement with proper TypeScript types and Sentry initialization
+3. Add Redis caching for expensive operations
+4. Deploy to hosted: supabase functions deploy <function_name>
+5. Add integration tests with Axiom logging
+6. Test with hosted instance
 ```
