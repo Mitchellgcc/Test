@@ -14,6 +14,7 @@ Enable Push Notifications in browser
 /cursor link https://github.com/YOUR_ORG/YOUR_REPO
 Mention @Cursor in a thread to spawn/resume agents
 Note: Background Agents already send "Tool-call cap reached" DMs
+Consider channel-level mute for high-traffic repos
 ✅ 0.3 GitHub Mobile
 Install GitHub app (iOS/Android)
 Enable PR notifications
@@ -28,9 +29,11 @@ Get Project URL and Anon Key from Settings → API
 Generate Service Role key for admin operations
 Install Supabase CLI: npm install -g supabase
 Link local project: supabase link --project-ref YOUR_PROJECT_ID
+⚠️ Note: Hosted instance only → budget extra 30-60s per agent test run
 ✅ 0.6 Essential Production Services
 **Sentry** (Error Tracking): Create project → copy DSN
 **Axiom** (Structured Logs): Create source → copy token
+⚠️ Axiom free tier: 100GB/mo - add sample rate 0.1 for debug logs
 **Upstash Redis** (Cache): Create database → copy REST URL + token
 Optional: **Resend** (Email): Add domain → verify DNS → create API key
 
@@ -54,6 +57,7 @@ Tell Cursor how to install, start, and test inside the remote agent VM:
 Add these secrets in Cursor UI → Project → Secrets:
 - VERCEL_TOKEN
 - VERCEL_ORG (your team/org slug)
+- NODE_ENV=production
 - SLACK_WEBHOOK  
 - SUPABASE_URL
 - SUPABASE_ANON_KEY
@@ -66,7 +70,7 @@ Add these secrets in Cursor UI → Project → Secrets:
 Optional (if using email):
 - RESEND_API_KEY
 
-✅ 1.2 Define .cursor/rules
+✅ 1.2 Define .cursor/rules (CORE ONLY - UX rules moved to Memories)
 Injected into every agent prompt:
 
 - Use TypeScript for all backend and frontend logic
@@ -82,9 +86,6 @@ Injected into every agent prompt:
 - Add extra logging during testing for maximum visibility
 - When tests fail, keep adding logging until issues are identified and fixed
 - Always check if a server/dev process is running before starting a new one
-- Use chat.completions.create for OpenAI API calls, not deprecated endpoints
-- For web projects: use dark mode, colorful DaisyUI, Tailwind, and anime.js
-- Include nice waiting animations for user-facing operations
 - Always run tests live unless specifically asked to mock
 - After opening a PR, always run the DEPLOY & NOTIFY step
 - All preview URLs must be echoed as: 🌐 PREVIEW_URL=<url>
@@ -93,18 +94,18 @@ Injected into every agent prompt:
 - Always list modified paths relative to repo root
 - Before starting work, read docs/agent-log.md for previous agent context
 - Use Supabase for all database, auth, and real-time features
-- Generate TypeScript types from Supabase schema after migrations: supabase gen types typescript --local > src/types/database.types.ts
+- Pull schema first: supabase db pull --db-url $SUPABASE_URL
+- Generate TypeScript types: supabase gen types typescript --local > src/types/database.types.ts
 - Create database migrations with: supabase migration new --name <slug> --no-editor
 - Use Row Level Security (RLS) for all database tables
-- Prefer Supabase Edge Functions over traditional API routes when possible
-- Always test database operations with hosted Supabase instance (local Docker unavailable in VM)
+- Always test database operations with hosted Supabase instance
 - Include database schema changes in JOURNAL entries
 - Never output $SUPABASE_SERVICE_ROLE_KEY in console logs
 - Wrap all server/Edge functions with Sentry.init() and try-catch blocks
-- Use Axiom for structured logging; avoid console.log spam in production
+- Use Axiom for structured logging with sample rate 0.1 for debug
 - Prefer Upstash Redis for ephemeral cache; never store PII
 - Cache expensive Supabase queries in Redis with TTL
-- Log errors and performance metrics to Axiom with structured data
+- Background axiom.ingest calls with & to avoid blocking
 
 ✅ 1.3 Git Setup
 git init
@@ -147,38 +148,45 @@ git add docs/agent-log.md && git commit -m "feat: add agent handoff log" && git 
 ✅ 1.7 Create Production Monitoring Setup
 Create src/lib/monitoring.ts:
 ```typescript
-// Sentry Error Tracking
-import * as Sentry from '@sentry/nextjs'
-export const initSentry = () => Sentry.init({ dsn: process.env.SENTRY_DSN })
+// Lazy imports to avoid Edge Function runtime cost
+export const initSentry = async () => {
+  const Sentry = await import('@sentry/nextjs')
+  return Sentry.init({ dsn: process.env.SENTRY_DSN })
+}
 
-// Axiom Structured Logging  
-import { Axiom } from '@axiom-dev/js'
-export const axiom = new Axiom({ token: process.env.AXIOM_TOKEN })
+export const getAxiom = async () => {
+  const { Axiom } = await import('@axiom-dev/js')
+  return new Axiom({ token: process.env.AXIOM_TOKEN })
+}
 
-// Upstash Redis Cache
-import { Redis } from '@upstash/redis'
-export const redis = new Redis({
-  url: process.env.UPSTASH_REDIS_REST_URL,
-  token: process.env.UPSTASH_REDIS_REST_TOKEN
-})
+export const getRedis = async () => {
+  const { Redis } = await import('@upstash/redis')
+  return new Redis({
+    url: process.env.UPSTASH_REDIS_REST_URL,
+    token: process.env.UPSTASH_REDIS_REST_TOKEN
+  })
+}
 ```
 git add src/lib/monitoring.ts && git commit -m "feat: add monitoring infrastructure" && git push
 
-✅ 1.8 Persist "Memories" in Cursor
+✅ 1.8 Persist "Memories" in Cursor (CONDENSED)
 Go to Cursor IDE > Right Panel > Memories
-Add:
+Add essential memories only:
 
 "We use Supabase for database, auth, and real-time features."
-"Always generate TypeScript types from Supabase schema."
-"Use Row Level Security (RLS) for all database tables."
-"UI is built with React + Tailwind + DaisyUI dark mode."
-"Tests must run via pnpm test and show ✅ or ❌."
-"Deploy previews go through Vercel, echoing 🌐 PREVIEW_URL=<url>."
-"Always read docs/agent-log.md before starting work for context from previous agents."
-"Include database schema changes in JOURNAL entries."
-"Wrap all server functions with Sentry error tracking."
-"Use Axiom for structured logging, avoid console.log in production."
-"Cache expensive queries in Upstash Redis with TTL."
+"UI: React + Tailwind + DaisyUI dark mode with anime.js animations."
+"Tests: pnpm test with ✅/❌ output. Live tests preferred."
+"Deploy: Vercel previews with 🌐 PREVIEW_URL echoed."
+"Context: Read docs/agent-log.md before starting work."
+"Monitoring: Sentry errors, Axiom logs, Redis cache with TTL."
+
+✅ 1.9 Add UX Preferences to Memories (MOVED FROM RULES)
+Add these UX-focused memories:
+
+"Use dark mode, colorful DaisyUI, and Tailwind for all UI."
+"Include nice waiting animations with anime.js."
+"Follow domain-driven naming (e.g., loginController)."
+"Use chat.completions.create for OpenAI API calls."
 
 🗂 STEP 2: PREPARE DAILY TASK PLAN (external)
 
@@ -192,11 +200,12 @@ Example:
 3. Create auth utilities in src/lib/supabase.ts
 4. Build login/signup components with DaisyUI
 5. Add auth state management
-6. Generate TypeScript types: supabase gen types typescript --local > src/types/database.types.ts
-7. Add Sentry error tracking to auth functions
-8. Cache auth state in Redis with 1h TTL
-9. Run pnpm test
-10. Submit PR
+6. Pull schema: supabase db pull --db-url $SUPABASE_URL
+7. Generate TypeScript types: supabase gen types typescript --local > src/types/database.types.ts
+8. Add Sentry error tracking to auth functions
+9. Cache auth state in Redis with 1h TTL
+10. Run pnpm test
+11. Submit PR
 
 ### REFLECT
 Summarise progress  
@@ -215,15 +224,15 @@ printf "## %s – %s\n- Scope: %s\n- Key files touched: %s\n- Database changes: 
 3. Save file
 
 ### MONITOR
-Log key metrics to Axiom:
-axiom.ingest('agent-metrics', { 
+Background log metrics to Axiom:
+(axiom.ingest('agent-metrics', { 
   agent: '$AGENT_NAME', 
   status: '$TEST_STATUS', 
   preview_url: '$PREVIEW_URL' 
-})
+}) &)
 
 ### DEPLOY
-PREVIEW_URL=$(vercel --prod --scope $VERCEL_ORG --token $VERCEL_TOKEN --yes | tail -n1)
+PREVIEW_URL=$(vercel --prod --scope $VERCEL_ORG --token $VERCEL_TOKEN --yes 2>&1 | grep -Eo 'https?://[a-zA-Z0-9./_-]+' || echo DEPLOY_FAILED)
 echo "🌐 PREVIEW_URL=${PREVIEW_URL}"
 
 ### NOTIFY
@@ -300,22 +309,25 @@ Time	Action
 
 Issue	Fix
 Agent stuck on Y/n prompt	Ensure all install/dev/test commands are non-interactive
-Agent can't deploy	Add $VERCEL_TOKEN and $VERCEL_ORG as project secrets
-Preview URL not found	Capture via subshell: PREVIEW_URL=$(vercel --prod --scope $VERCEL_ORG --token $VERCEL_TOKEN --yes | tail -n1)
+Agent can't deploy	Add $VERCEL_TOKEN, $VERCEL_ORG, and NODE_ENV=production as secrets
+Preview URL not found	URL captured via grep -Eo, returns DEPLOY_FAILED if build fails
 No Slack pings	Check $SLACK_WEBHOOK is set + added in queue
 Agent tool-call limit hit	Use Max Mode or add @Cursor resume agent-name in Slack
 Agent ignores previous context	Ensure "Review docs/agent-log.md" is first in every agent prompt
 Context handoff broken	Check docs/agent-log.md exists and agents are appending (not overwriting)
 Supabase CLI not found	Ensure "npm i -g supabase" is in environment.json install command
-Database types out of sync	Run "supabase gen types typescript --local > src/types/database.types.ts" after migrations
+Database types out of sync	Run "supabase db pull --db-url $SUPABASE_URL" before gen types
 RLS policies blocking queries	Check policies allow authenticated users, test with hosted instance
 Docker unavailable in VM	Use hosted Supabase instance, skip supabase start --docker
 Migration creation prompts	Use "supabase migration new --name <slug> --no-editor"
 Service role key exposed	Never log $SUPABASE_SERVICE_ROLE_KEY in console output
 Sentry not initialized	Add Sentry.init() to app entry point
-Axiom logs not appearing	Check AXIOM_TOKEN is set and axiom.ingest() is called
+Axiom logs not appearing	Check AXIOM_TOKEN is set and sample rate not too low
 Redis cache misses	Check UPSTASH_REDIS_REST_URL and REST_TOKEN are correct
 Rate limit exceeded	Implement Redis-based rate limiting and caching
+Edge Function deploy fails	Add --no-verify-jwt flag to supabase functions deploy
+Memory/rules token bloat	Keep rules < 3KB, move UX preferences to Memories
+Axiom quota exhausted	Add sample rate 0.1 for debug logs, consider batching
 
 🎯 QUICK COPY-PASTE AGENT QUEUE TAIL
 
@@ -330,16 +342,16 @@ printf "## %s – %s\n- Scope: %s\n- Files: %s\n- Database: %s\n- Tests: %s\n- P
   "$TEST_STATUS" "$PREVIEW_URL" "[3 bullet points from REFLECT]" >> docs/agent-log.md
 
 ### MONITOR
-axiom.ingest('agent-metrics', { 
+(axiom.ingest('agent-metrics', { 
   agent: '$AGENT_NAME', 
   status: '$TEST_STATUS', 
   files_touched: '[list]',
   preview_url: '$PREVIEW_URL',
   timestamp: new Date().toISOString()
-})
+}) &)
 
 ### DEPLOY
-PREVIEW_URL=$(vercel --prod --scope $VERCEL_ORG --token $VERCEL_TOKEN --yes | tail -n1)
+PREVIEW_URL=$(vercel --prod --scope $VERCEL_ORG --token $VERCEL_TOKEN --yes 2>&1 | grep -Eo 'https?://[a-zA-Z0-9./_-]+' || echo DEPLOY_FAILED)
 echo "🌐 PREVIEW_URL=${PREVIEW_URL}"
 
 ### NOTIFY  
@@ -360,11 +372,12 @@ gh pr create --fill
 1. Create migration: supabase migration new --name <feature_name> --no-editor
 2. Add tables with RLS policies
 3. Push schema: supabase db push
-4. Generate types: supabase gen types typescript --local > src/types/database.types.ts
-5. Test with hosted instance (Docker unavailable in VM)
-6. Add Sentry error tracking to database functions
-7. Cache schema metadata in Redis
-8. Commit schema + types
+4. Pull schema: supabase db pull --db-url $SUPABASE_URL
+5. Generate types: supabase gen types typescript --local > src/types/database.types.ts
+6. Test with hosted instance (Docker unavailable in VM)
+7. Add Sentry error tracking to database functions
+8. Cache schema metadata in Redis
+9. Commit schema + types
 ```
 
 ### Auth Flow Agent:
@@ -382,7 +395,21 @@ gh pr create --fill
 1. Create function: supabase functions new <function_name>
 2. Implement with proper TypeScript types and Sentry initialization
 3. Add Redis caching for expensive operations
-4. Deploy to hosted: supabase functions deploy <function_name>
+4. Deploy to hosted: supabase functions deploy <function_name> --no-verify-jwt
 5. Add integration tests with Axiom logging
 6. Test with hosted instance
 ```
+
+🚀 HIGH-ROI OPTIONAL BOLT-ONS
+
+### Testing: Playwright Cloud 🧪
+5-line GitHub Action for e2e testing of Vercel previews
+
+### Security: Dependabot 🤖
+Auto-PRs for npm vulnerabilities - BugBot can review automatically
+
+### Performance: Next.js Image CDN 📷
+Built into Vercel - skip Cloudinary unless heavy transforms needed
+
+### Workflow: GitHub PR Template 📝
+Pre-populated with PREVIEW_URL and test coverage badges
