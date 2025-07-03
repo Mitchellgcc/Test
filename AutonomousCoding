@@ -13,7 +13,7 @@ Enable Push Notifications in browser
 /apps install cursor
 /cursor link https://github.com/YOUR_ORG/YOUR_REPO
 Mention @Cursor in a thread to spawn/resume agents
-Setup Slack webhook URL (for agent output → Slack messages)
+Note: Background Agents already send "Tool-call cap reached" DMs
 ✅ 0.3 GitHub Mobile
 Install GitHub app (iOS/Android)
 Enable PR notifications
@@ -21,7 +21,7 @@ Star your repo for easy access
 ✅ 0.4 Preview Deploys via Vercel (or Netlify)
 Connect repo to Vercel
 Enable Preview Deployments per PR
-Optional: add CLI deploy for final push
+Get your Vercel team/org slug for non-interactive deployment
 ✅ 0.5 Supabase Project Setup
 Create project at https://supabase.com/dashboard
 Get Project URL and Anon Key from Settings → API
@@ -36,19 +36,19 @@ Link local project: supabase link --project-ref YOUR_PROJECT_ID
 Tell Cursor how to install, start, and test inside the remote agent VM:
 
 {
-  "install": "rm -rf node_modules && npm install -g supabase && pnpm install --prefer-offline --frozen-lockfile",
+  "install": "npm i -g supabase && pnpm install --prefer-offline --frozen-lockfile",
   "terminals": [
     { "name": "dev",    "command": "pnpm dev" },
     { "name": "test",   "command": "pnpm test" },
     { "name": "build",  "command": "pnpm build" },
     { "name": "lint",   "command": "pnpm lint" },
-    { "name": "db",     "command": "supabase start" },
-    { "name": "types",  "command": "supabase gen types typescript --local > src/types/database.types.ts" },
-    { "name": "deploy", "command": "vercel --token $VERCEL_TOKEN --yes" }
+    { "name": "types",  "command": "echo 'Run gen types in queue only'" },
+    { "name": "deploy", "command": "echo 'Deploy handled by queue'" }
   ]
 }
 Add these secrets in Cursor UI → Project → Secrets:
 - VERCEL_TOKEN
+- VERCEL_ORG (your team/org slug)
 - SLACK_WEBHOOK  
 - SUPABASE_URL
 - SUPABASE_ANON_KEY
@@ -82,12 +82,13 @@ Injected into every agent prompt:
 - Always list modified paths relative to repo root
 - Before starting work, read docs/agent-log.md for previous agent context
 - Use Supabase for all database, auth, and real-time features
-- Generate TypeScript types from Supabase schema: supabase gen types typescript
-- Create database migrations for schema changes: supabase migration new <name>
+- Generate TypeScript types from Supabase schema after migrations: supabase gen types typescript --local > src/types/database.types.ts
+- Create database migrations with: supabase migration new --name <slug> --no-editor
 - Use Row Level Security (RLS) for all database tables
 - Prefer Supabase Edge Functions over traditional API routes when possible
-- Always test database operations with local Supabase instance first
+- Always test database operations with hosted Supabase instance (local Docker unavailable in VM)
 - Include database schema changes in JOURNAL entries
+- Never output $SUPABASE_SERVICE_ROLE_KEY in console logs
 
 ✅ 1.3 Git Setup
 git init
@@ -152,7 +153,7 @@ Example:
 3. Create auth utilities in src/lib/supabase.ts
 4. Build login/signup components with DaisyUI
 5. Add auth state management
-6. Generate TypeScript types: supabase gen types typescript
+6. Generate TypeScript types: supabase gen types typescript --local > src/types/database.types.ts
 7. Run pnpm test
 8. Submit PR
 
@@ -163,28 +164,25 @@ Output them as ### NEXT_QUEUE
 
 ### JOURNAL
 1. Read docs/agent-log.md (create if missing)
-2. Append:
+2. Append using printf to avoid race conditions:
 
-## <AGENT_NAME> – <YYYY-MM-DD HH:MM>
-- Scope: <high-level goal>
-- Key files touched: <list>
-- Database changes: <migrations/schema updates>
-- Tests: ✅ or ❌
-- Preview: <url>
-- Next tasks: <3 bullet points>
+printf "## %s – %s\n- Scope: %s\n- Key files touched: %s\n- Database changes: %s\n- Tests: %s\n- Preview: %s\n- Next tasks: %s\n\n" \
+  "$AGENT_NAME" "$(date -Iseconds)" \
+  "[high-level goal]" "[list]" "[migrations/schema]" \
+  "$TEST_STATUS" "$PREVIEW_URL" "[3 bullet points]" >> docs/agent-log.md
 
 3. Save file
 
 ### DEPLOY
-Run `vercel --token $VERCEL_TOKEN --yes`  
-Echo 🌐 PREVIEW_URL=<url>
+PREVIEW_URL=$(vercel --prod --scope $VERCEL_ORG --token $VERCEL_TOKEN --yes | tail -n1)
+echo "🌐 PREVIEW_URL=${PREVIEW_URL}"
 
 ### NOTIFY
-POST preview URL to $SLACK_WEBHOOK
+curl -X POST $SLACK_WEBHOOK -d "{\"text\":\"🚀 ${AGENT_NAME} deployed: ${PREVIEW_URL}\"}"
 
 ### PUSH
 git add docs/agent-log.md
-git commit -m "chore(log): journal update ${AGENT_NAME} ✅ TESTS PASSED 🌐 PREVIEW_URL=<url>"
+git commit -m "chore(log): journal update ${AGENT_NAME} ✅ ${TEST_STATUS} 🌐 ${PREVIEW_URL}"
 git push --set-upstream origin <branch>
 gh pr create --fill
 
@@ -252,15 +250,18 @@ Time	Action
 
 Issue	Fix
 Agent stuck on Y/n prompt	Ensure all install/dev/test commands are non-interactive
-Agent can't deploy	Add $VERCEL_TOKEN as project secret
-Preview URL not found	Ensure agent echoes 🌐 PREVIEW_URL=<url> and doesn't suppress output
+Agent can't deploy	Add $VERCEL_TOKEN and $VERCEL_ORG as project secrets
+Preview URL not found	Capture via subshell: PREVIEW_URL=$(vercel --prod --scope $VERCEL_ORG --token $VERCEL_TOKEN --yes | tail -n1)
 No Slack pings	Check $SLACK_WEBHOOK is set + added in queue
 Agent tool-call limit hit	Use Max Mode or add @Cursor resume agent-name in Slack
 Agent ignores previous context	Ensure "Review docs/agent-log.md" is first in every agent prompt
 Context handoff broken	Check docs/agent-log.md exists and agents are appending (not overwriting)
-Supabase CLI not found	Ensure "npm install -g supabase" is in environment.json install command
-Database types out of sync	Run "supabase gen types typescript" after schema changes
-RLS policies blocking queries	Check policies allow authenticated users, test with service role key
+Supabase CLI not found	Ensure "npm i -g supabase" is in environment.json install command
+Database types out of sync	Run "supabase gen types typescript --local > src/types/database.types.ts" after migrations
+RLS policies blocking queries	Check policies allow authenticated users, test with hosted instance
+Docker unavailable in VM	Use hosted Supabase instance, skip supabase start --docker
+Migration creation prompts	Use "supabase migration new --name <slug> --no-editor"
+Service role key exposed	Never log $SUPABASE_SERVICE_ROLE_KEY in console output
 
 🎯 QUICK COPY-PASTE AGENT QUEUE TAIL
 
@@ -269,21 +270,17 @@ Summarise work completed in 3-5 lines
 List 3 NEXT_QUEUE tasks for subsequent agents
 
 ### JOURNAL
-echo "## ${AGENT_NAME} – $(date -Iseconds)" >> docs/agent-log.md
-echo "- Scope: [describe high-level goal]" >> docs/agent-log.md  
-echo "- Files: [list key paths touched]" >> docs/agent-log.md
-echo "- Database: [migrations/schema changes]" >> docs/agent-log.md
-echo "- Tests: ${TEST_STATUS}" >> docs/agent-log.md
-echo "- Preview: ${PREVIEW_URL}" >> docs/agent-log.md
-echo "- Next: [3 bullet points from REFLECT]" >> docs/agent-log.md
-echo "" >> docs/agent-log.md
+printf "## %s – %s\n- Scope: %s\n- Files: %s\n- Database: %s\n- Tests: %s\n- Preview: %s\n- Next: %s\n\n" \
+  "$AGENT_NAME" "$(date -Iseconds)" \
+  "[describe high-level goal]" "[list key paths]" "[migrations/schema]" \
+  "$TEST_STATUS" "$PREVIEW_URL" "[3 bullet points from REFLECT]" >> docs/agent-log.md
 
 ### DEPLOY
-vercel --token $VERCEL_TOKEN --yes
-echo "🌐 PREVIEW_URL=$(cat .vercel/preview.txt)"
+PREVIEW_URL=$(vercel --prod --scope $VERCEL_ORG --token $VERCEL_TOKEN --yes | tail -n1)
+echo "🌐 PREVIEW_URL=${PREVIEW_URL}"
 
 ### NOTIFY  
-curl -X POST $SLACK_WEBHOOK -d '{"text":"🚀 '${AGENT_NAME}' deployed: '${PREVIEW_URL}'"}'
+curl -X POST $SLACK_WEBHOOK -d "{\"text\":\"🚀 ${AGENT_NAME} deployed: ${PREVIEW_URL}\"}"
 
 ### PUSH
 git add docs/agent-log.md
@@ -297,11 +294,12 @@ gh pr create --fill
 
 ### Database Schema Agent:
 ```
-1. Create migration: supabase migration new <feature_name>
+1. Create migration: supabase migration new --name <feature_name> --no-editor
 2. Add tables with RLS policies
-3. Generate types: supabase gen types typescript --local > src/types/database.types.ts
-4. Test with local Supabase: supabase start
-5. Commit schema + types
+3. Push schema: supabase db push
+4. Generate types: supabase gen types typescript --local > src/types/database.types.ts
+5. Test with hosted instance (Docker unavailable in VM)
+6. Commit schema + types
 ```
 
 ### Auth Flow Agent:
@@ -310,14 +308,14 @@ gh pr create --fill
 2. Create auth utilities in src/lib/supabase.ts
 3. Build login/signup components with proper TypeScript types
 4. Add protected route middleware
-5. Test auth flow with real Supabase instance
+5. Test auth flow with hosted Supabase instance
 ```
 
 ### Edge Function Agent:
 ```
 1. Create function: supabase functions new <function_name>
 2. Implement with proper TypeScript types
-3. Deploy to local: supabase functions serve
+3. Deploy to hosted: supabase functions deploy <function_name>
 4. Add integration tests
-5. Deploy to production: supabase functions deploy
+5. Test with hosted instance
 ```

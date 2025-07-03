@@ -1,9 +1,11 @@
 {
-  "install": "rm -rf node_modules && pnpm install && pnpm build",
+  "install": "npm i -g supabase && pnpm install --prefer-offline --frozen-lockfile",
   "terminals": [
     { "name": "dev", "command": "pnpm dev" },
     { "name": "test", "command": "pnpm test" },
     { "name": "build", "command": "pnpm build" },
-    { "name": "lint", "command": "pnpm lint" }
+    { "name": "lint", "command": "pnpm lint" },
+    { "name": "types", "command": "echo 'Run gen types in queue only'" },
+    { "name": "deploy", "command": "echo 'Deploy handled by queue'" }
   ]
 } 
