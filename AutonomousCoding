@@ -1,34 +1,55 @@
-🧠 THE FULLY UPDATED AUTONOMOUS CURSOR MICRO-WORKFLOW
+🧠 THE FULLY UPDATED AUTONOMOUS CURSOR MICRO-WORKFLOW (WITH FULL VISIBILITY + CI DEPLOYS)
 
+🛰️ STEP 0: VISIBILITY & CI PREVIEW SET-UP
+
+# HumanToDo
+
+Do this once to ensure you can monitor & interact with your builds entirely from a phone.
+✅ 0.1 Cursor Web + Mobile
+Go to https://cursor.com/agents
+Tap "Add to Home Screen" to install as mobile app (PWA)
+Enable Push Notifications in browser
+✅ 0.2 Slack Bot Integration
+/apps install cursor
+/cursor link https://github.com/YOUR_ORG/YOUR_REPO
+Mention @Cursor in a thread to spawn/resume agents
+Setup Slack webhook URL (for agent output → Slack messages)
+✅ 0.3 GitHub Mobile
+Install GitHub app (iOS/Android)
+Enable PR notifications
+Star your repo for easy access
+✅ 0.4 Preview Deploys via Vercel (or Netlify)
+Connect repo to Vercel
+Enable Preview Deployments per PR
+Optional: add CLI deploy for final push
+
+# CursorToDo
 🔧 STEP 1: PROJECT INFRASTRUCTURE SETUP
 
-✅ 1.1 Create the environment.json
-Tell Cursor how to install, start, and test your project inside the agent VM:
-
-⚠️ CRITICAL: Use non-interactive commands to prevent agents from getting stuck on prompts!
+✅ 1.1 Create .cursor/environment.json
+Tell Cursor how to install, start, and test inside the remote agent VM:
 
 {
-  "install": "rm -rf node_modules && pnpm install && pnpm build",
+  "install": "rm -rf node_modules && pnpm install --prefer-offline --frozen-lockfile",
   "terminals": [
-    { "name": "dev", "command": "pnpm dev" },
-    { "name": "test", "command": "pnpm test" },
-    { "name": "build", "command": "pnpm build" },
-    { "name": "lint", "command": "pnpm lint" }
+    { "name": "dev",    "command": "pnpm dev" },
+    { "name": "test",   "command": "pnpm test" },
+    { "name": "build",  "command": "pnpm build" },
+    { "name": "lint",   "command": "pnpm lint" },
+    { "name": "deploy", "command": "vercel --token $VERCEL_TOKEN --yes" }
   ]
 }
-install → run once on VM start (removes node_modules first to avoid interactive prompts)
-terminals → background watchers visible in Cursor interface
-📁 Save this to: .cursor/environment.json
-
-✅ 1.2 Define your Cursor Rules
-These act as architectural and behavioral constraints injected into every agent session:
+Add VERCEL_TOKEN (or NETLIFY_AUTH_TOKEN) and SLACK_WEBHOOK under:
+Cursor UI → Project → Secrets
+✅ 1.2 Define .cursor/rules
+Injected into every agent prompt:
 
 - Use TypeScript for all backend and frontend logic
 - Avoid editing any files in /legacy or /vendor
 - Always generate unit and integration tests with new features
 - Use async/await only, never .then()
 - Follow domain-driven naming conventions (e.g., loginController)
-- Keep directory well structured & well organised, build folders where necessary
+- Keep directory well-structured, build folders where necessary
 - Always add parseable terminal output to test runners:
   - console.log("✅ TESTS PASSED") for success
   - console.log("❌ TEST FAILURE") for failures
@@ -40,182 +61,189 @@ These act as architectural and behavioral constraints injected into every agent 
 - For web projects: use dark mode, colorful DaisyUI, Tailwind, and anime.js
 - Include nice waiting animations for user-facing operations
 - Always run tests live unless specifically asked to mock
-📁 Save this to: .cursor/rules
-
-✅ 1.3 Initialize Git Repository (REQUIRED)
-Background agents need Git to create branches and submit PRs:
-
+- After opening a PR, always run the DEPLOY & NOTIFY step
+- All preview URLs must be echoed as: 🌐 PREVIEW_URL=<url>
+- After REFLECT, always execute JOURNAL then PUSH
+- The JOURNAL entry must be ≤ 20 lines
+- Always list modified paths relative to repo root
+- Before starting work, read docs/agent-log.md for previous agent context
+✅ 1.3 Git Setup
 git init
 git remote add origin https://github.com/YOUR_USERNAME/YOUR_REPO.git
 git branch -m main
 git add .
 git commit -m "Initial setup: Autonomous Cursor workflow infrastructure"
 git push -u origin main
-
-🚨 WITHOUT GIT SETUP, AGENTS CANNOT CREATE BRANCHES OR SUBMIT PRS!
-
+🚨 Agents require Git branches to push PRs
 ✅ 1.4 Create .gitignore
-Add comprehensive .gitignore to prevent committing unnecessary files:
-
 # Dependencies
 node_modules/
-# Production builds
+# Builds
 dist/
 build/
 out/
-# Environment variables
+# Env
 .env*
-# OS files
+# OS
 .DS_Store
-# IDE files
+# IDE
 .vscode/
 .idea/
-# And more...
-
-✅ 1.5 Persist domain knowledge in Memories
-Store key domain concepts once—they're retrieved automatically in future prompts:
+✅ 1.5 Create docs/agent-log.md
+mkdir -p docs
+echo "# Agent Handoff Log\n\nContext persistence for autonomous agent workflows.\n" > docs/agent-log.md
+git add docs/agent-log.md && git commit -m "feat: add agent handoff log" && git push
+✅ 1.6 Persist "Memories" in Cursor
+Go to Cursor IDE > Right Panel > Memories
+Add:
 
 "We use JWT for authentication, not sessions."
-"UI built with React + Tailwind."
+"UI is built with React + Tailwind."
 "Tests must run via pnpm test and show ✅ or ❌."
-🧠 Add memories manually via the right-side panel > Memories tab in Cursor.
+"Deploy previews go through Vercel, echoing 🌐 PREVIEW_URL=<url>."
+"Always read docs/agent-log.md before starting work for context from previous agents."
 
-🗂 STEP 2: PREPARE DAILY TASK PLAN (external to Cursor)
+🗂 STEP 2: PREPARE DAILY TASK PLAN (external)
 
-✅ 2.1 Write a task backlog (outside the repo)
-Create a tasks.md or dayplan.txt on your desktop like:
+Cursor doesn't read .md files — you paste each task into the agent queue.
+Example:
 
-## Feature: Analytics Dashboard
+## Agent: analytics-ui-agent
 
-Agent: analytics-ui-agent  
 1. Create /analytics React page  
-2. Add props for chart injection  
-3. Render placeholder bar chart  
-4. Build 3 test cases: render, empty, failure  
-5. Retry chart if tests fail  
+2. Add chart props and dummy bar chart  
+3. Build 3 test cases (render, empty, failure)  
+4. Run pnpm test  
+5. Retry on ❌  
 6. Submit PR
 
-Agent: analytics-api-agent  
-1. Create /api/funnels GET route  
-2. Hook into analytics DB  
-3. Add integration test for response  
-4. Log ❌/✅ in terminal output  
-5. Push PR
-📝 Important: Cursor does not read this file. It's your personal queue to paste into agents or Slack messages.
+### REFLECT
+Summarise progress  
+Suggest next 3 tasks  
+Output them as ### NEXT_QUEUE
 
-🤖 STEP 3: SPAWN AND QUEUE AGENTS
+### JOURNAL
+1. Read docs/agent-log.md (create if missing)
+2. Append:
 
-✅ 3.1 Open Cursor and the project
-Wait for full index and .cursor/ parsing.
+## <AGENT_NAME> – <YYYY-MM-DD HH:MM>
+- Scope: <high-level goal>
+- Key files touched: <list>
+- Tests: ✅ or ❌
+- Preview: <url>
+- Next tasks: <3 bullet points>
 
-✅ 3.2 Spawn each Background Agent
-For each task group:
+3. Save file
 
-Press Ctrl + E → New Background Agent
-Name it (auth-agent, analytics-ui-agent, etc.)
-Cursor creates a branch for that agent: feature/auth-agent
-Paste your first prompt (from your task file)
+### DEPLOY
+Run `vercel --token $VERCEL_TOKEN --yes`  
+Echo 🌐 PREVIEW_URL=<url>
 
-⚠️ TROUBLESHOOTING: If agent gets stuck on interactive prompts:
-- Check Background Agent panel logs
-- Look for prompts like "Proceed? (Y/n)"
-- Cancel agent and respawn with fixed environment.json
+### NOTIFY
+POST preview URL to $SLACK_WEBHOOK
 
-✅ 3.3 Queue follow-up prompts
-While the agent is running, queue steps like:
+### PUSH
+git add docs/agent-log.md
+git commit -m "chore(log): journal update ${AGENT_NAME} ✅ TESTS PASSED 🌐 PREVIEW_URL=<url>"
+git push --set-upstream origin <branch>
+gh pr create --fill
 
-Run all tests via pnpm test  
-If any test fails, retry generation with improved error handling  
-If all tests pass, open a PR with summary  
-Include test coverage in the PR body
-📌 Prompts execute in order once the current one finishes. You can monitor via the Background Agent panel.
+### EXIT_ON_SUCCESS
+🤖 STEP 3: SPAWN & QUEUE AGENTS
 
-🧪 STEP 4: ENABLE SELF-MONITORING & SELF-HEALING
+✅ 3.1 Open Cursor + Wait for Project Indexing
+✅ 3.2 Spawn Background Agent
+Ctrl + E → Background Agent
+Name it (e.g., analytics-api-agent)
+Paste: "Review docs/agent-log.md for context from previous agents, then continue with:"
+Paste initial prompt from backlog
+✅ 3.3 Queue Prompts
+Paste remaining queue prompts, ending with REFLECT, JOURNAL, DEPLOY, NOTIFY, PUSH, and EXIT_ON_SUCCESS.
 
-✅ 4.1 Add parseable terminal output to test runner
-In your test files or scripts, add:
+Monitor agent in Cursor Web, Slack, or desktop IDE.
 
-if (testsPassed) {
-  console.log("✅ UNIT TESTS PASSED");
+🧪 STEP 4: ENABLE SELF-MONITORING & RECOVERY
+
+✅ 4.1 In Test Runners
+if (passed) {
+  console.log("✅ TESTS PASSED")
 } else {
-  console.log("❌ UNIT TEST FAILURE");
+  console.log("❌ TEST FAILURE")
 }
-✅ 4.2 Structure prompts to handle failure
-In your agent queue:
+✅ 4.2 In Prompts
+Run pnpm test  
+If output contains ❌, regenerate broken tests and retry once  
+Only open PR on ✅
+🔁 STEP 5: CODE REVIEW & MERGE
 
-Run tests  
-If output includes ❌, identify which tests failed and regenerate those cases  
-Retry tests once  
-If ✅ appears, continue to PR
-💡 Cursor agents can read terminal output if it is consistent and formatted predictably.
-
-🛰️ STEP 5: ORCHESTRATE REMOTELY (OPTIONAL)
-
-✅ 5.1 Enable Slack Integration
-Invite the @Cursor bot to a Slack channel
-Format messages like:
-@Cursor repo=org/repo-name
-
-Spawn agent `login-agent`:  
-1. Refactor login page using Tailwind  
-2. Add form validation with Zod  
-3. Retry if login.test.ts fails  
-4. Submit PR
-✅ 5.2 Use the Cursor Web Dashboard
-View agent progress and logs live
-Add prompts to existing agents
-Kill, restart, or duplicate agents
-Supports mobile (iOS/Android) via browser
-🔗 Search for Cursor web dashboard
-
-🔁 STEP 6: CODE REVIEW AND PR MANAGEMENT
-
-✅ 6.1 Let BugBot handle PR review
-Each agent-submitted PR is reviewed by BugBot
-Comments include test status, logic flags, and best practices
-Appears inline in the PR and in Cursor interface
-✅ 6.2 Optional: Run manual review agent
-Spawn a new Background Agent with:
-
+✅ 5.1 BugBot Review
+PR auto-reviewed
+Inline comments + "Fix in Cursor" button
+✅ 5.2 Optional Review Agent
 1. Checkout PR #123  
 2. Run tests  
-3. If coverage < 90% or test fails, comment inline  
+3. Patch if lint or coverage < 90%  
 4. Approve PR if clean
-Cursor does not yet support full auto-approval → merging is still manual (or via GitHub rules).
+✅ 5.3 Merge via GitHub Mobile
+Use squash-merge or main-branch promotion
+CI will deploy automatically
 
-✅ 6.3 "Fix in Cursor" Button
-Appears inside the Cursor IDE only when BugBot flags an issue.
+🧼 STEP 6: DAILY RESET
 
-Clicking it brings you to the exact diff and opens a rewrite prompt.
-🧼 STEP 7: CLEAN-UP & DAILY RESET
+✅ 6.1 Clean Branches
+After merging, delete stale branches if not auto-deleted
 
-✅ 7.1 Merge and clean branches
-After approval, use GitHub's merge UI or gh pr merge
-Cursor will delete the agent's branch automatically if configured
-✅ 7.2 Archive daily task logs
-Rename your external tasks.md to tasks-2025-07-03.md for history tracking
-
-🚨 COMMON ISSUES & FIXES
-
-❌ Agent stuck on interactive prompts
-✅ Fix: Use "rm -rf node_modules && pnpm install" in environment.json
-
-❌ Agent can't create branches/PRs
-✅ Fix: Initialize Git repository with remote origin
-
-❌ Tests don't show ✅/❌ status
-✅ Fix: Add console.log statements with exact format
-
-❌ Agent ignores architectural rules
-✅ Fix: Add specific constraints to .cursor/rules
+✅ 6.2 Archive Task Logs
+Rename task file: tasks-2025-07-03.md
+Use it to compare REFLECT output from agent vs plan
 
 🧭 OPTIONAL DAILY SCHEDULE TEMPLATE
 
 Time	Action
-08:30	Write daily task prompts + goals
-09:00	Spawn agents and queue tasks
-09:15–12:00	Cursor builds, tests, retries
-12:00	BugBot reviews PRs
-13:00	Manual or agent PR review
+08:30	Write task prompts + goals
+09:00	Spawn agents and queue
+09:15–12:00	Cursor builds/tests/reflects
+12:00	Check preview links in Slack
+13:00	Review PRs on GitHub Mobile
 14:00–17:00	Queue next feature set
-17:00–18:00	PR merge, cleanup, planning for next day
+17:00–18:00	Merge PRs, cleanup, archive
+🛠 COMMON ISSUES & FIXES
+
+Issue	Fix
+Agent stuck on Y/n prompt	Ensure all install/dev/test commands are non-interactive
+Agent can't deploy	Add $VERCEL_TOKEN as project secret
+Preview URL not found	Ensure agent echoes 🌐 PREVIEW_URL=<url> and doesn't suppress output
+No Slack pings	Check $SLACK_WEBHOOK is set + added in queue
+Agent tool-call limit hit	Use Max Mode or add @Cursor resume agent-name in Slack
+Agent ignores previous context	Ensure "Review docs/agent-log.md" is first in every agent prompt
+Context handoff broken	Check docs/agent-log.md exists and agents are appending (not overwriting)
+
+🎯 QUICK COPY-PASTE AGENT QUEUE TAIL
+
+### REFLECT
+Summarise work completed in 3-5 lines
+List 3 NEXT_QUEUE tasks for subsequent agents
+
+### JOURNAL
+echo "## ${AGENT_NAME} – $(date -Iseconds)" >> docs/agent-log.md
+echo "- Scope: [describe high-level goal]" >> docs/agent-log.md  
+echo "- Files: [list key paths touched]" >> docs/agent-log.md
+echo "- Tests: ${TEST_STATUS}" >> docs/agent-log.md
+echo "- Preview: ${PREVIEW_URL}" >> docs/agent-log.md
+echo "- Next: [3 bullet points from REFLECT]" >> docs/agent-log.md
+echo "" >> docs/agent-log.md
+
+### DEPLOY
+vercel --token $VERCEL_TOKEN --yes
+echo "🌐 PREVIEW_URL=$(cat .vercel/preview.txt)"
+
+### NOTIFY  
+curl -X POST $SLACK_WEBHOOK -d '{"text":"🚀 '${AGENT_NAME}' deployed: '${PREVIEW_URL}'"}'
+
+### PUSH
+git add docs/agent-log.md
+git commit -m "chore(log): ${AGENT_NAME} journal ✅ ${TEST_STATUS} 🌐 ${PREVIEW_URL}"
+git push --set-upstream origin $(git branch --show-current)
+gh pr create --fill
+
+### EXIT_ON_SUCCESS
