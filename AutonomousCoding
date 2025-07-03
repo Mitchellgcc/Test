@@ -1,0 +1,153 @@
+🧠 THE FULLY UPDATED AUTONOMOUS CURSOR MICRO-WORKFLOW
+
+🔧 STEP 1: PROJECT INFRASTRUCTURE SETUP
+
+✅ 1.1 Create the environment.json
+Tell Cursor how to install, start, and test your project inside the agent VM:
+
+{
+  "install": "pnpm install && pnpm build",
+  "terminals": [
+    { "name": "dev", "command": "pnpm dev" },
+    { "name": "test", "command": "pnpm test" }
+  ]
+}
+install → run once on VM start
+terminals → background watchers visible in Cursor interface
+📁 Save this to: .cursor/environment.json
+✅ 1.2 Define your Cursor Rules
+These act as architectural and behavioral constraints injected into every agent session:
+
+- Use TypeScript for all backend and frontend logic
+- Avoid editing any files in /legacy or /vendor
+- Always generate unit and integration tests with new features
+- Use async/await only, never .then()
+- Follow domain-driven naming conventions (e.g., loginController)
+📁 Save this to: .cursor/rules
+
+✅ 1.3 Persist domain knowledge in Memories
+Store key domain concepts once—they’re retrieved automatically in future prompts:
+
+"We use JWT for authentication, not sessions."
+"UI built with React + Tailwind."
+"Tests must run via pnpm test and show ✅ or ❌."
+🧠 Add memories manually via the right-side panel > Memories tab in Cursor.
+
+🗂 STEP 2: PREPARE DAILY TASK PLAN (external to Cursor)
+
+✅ 2.1 Write a task backlog (outside the repo)
+Create a tasks.md or dayplan.txt on your desktop like:
+
+## Feature: Analytics Dashboard
+
+Agent: analytics-ui-agent  
+1. Create /analytics React page  
+2. Add props for chart injection  
+3. Render placeholder bar chart  
+4. Build 3 test cases: render, empty, failure  
+5. Retry chart if tests fail  
+6. Submit PR
+
+Agent: analytics-api-agent  
+1. Create /api/funnels GET route  
+2. Hook into analytics DB  
+3. Add integration test for response  
+4. Log ❌/✅ in terminal output  
+5. Push PR
+📝 Important: Cursor does not read this file. It’s your personal queue to paste into agents or Slack messages.
+
+🤖 STEP 3: SPAWN AND QUEUE AGENTS
+
+✅ 3.1 Open Cursor and the project
+Wait for full index and .cursor/ parsing.
+
+✅ 3.2 Spawn each Background Agent
+For each task group:
+
+Press Ctrl + E → New Background Agent
+Name it (auth-agent, analytics-ui-agent, etc.)
+Cursor creates a branch for that agent: feature/auth-agent
+Paste your first prompt (from your task file)
+✅ 3.3 Queue follow-up prompts
+While the agent is running, queue steps like:
+
+Run all tests via pnpm test  
+If any test fails, retry generation with improved error handling  
+If all tests pass, open a PR with summary  
+Include test coverage in the PR body
+📌 Prompts execute in order once the current one finishes. You can monitor via the Background Agent panel.
+
+🧪 STEP 4: ENABLE SELF-MONITORING & SELF-HEALING
+
+✅ 4.1 Add parseable terminal output to test runner
+In your test files or scripts, add:
+
+if (testsPassed) {
+  console.log("✅ UNIT TESTS PASSED");
+} else {
+  console.log("❌ UNIT TEST FAILURE");
+}
+✅ 4.2 Structure prompts to handle failure
+In your agent queue:
+
+Run tests  
+If output includes ❌, identify which tests failed and regenerate those cases  
+Retry tests once  
+If ✅ appears, continue to PR
+💡 Cursor agents can read terminal output if it is consistent and formatted predictably.
+
+🛰️ STEP 5: ORCHESTRATE REMOTELY (OPTIONAL)
+
+✅ 5.1 Enable Slack Integration
+Invite the @Cursor bot to a Slack channel
+Format messages like:
+@Cursor repo=org/repo-name
+
+Spawn agent `login-agent`:  
+1. Refactor login page using Tailwind  
+2. Add form validation with Zod  
+3. Retry if login.test.ts fails  
+4. Submit PR
+✅ 5.2 Use the Cursor Web Dashboard
+View agent progress and logs live
+Add prompts to existing agents
+Kill, restart, or duplicate agents
+Supports mobile (iOS/Android) via browser
+🔗 Search for Cursor web dashboard
+
+🔁 STEP 6: CODE REVIEW AND PR MANAGEMENT
+
+✅ 6.1 Let BugBot handle PR review
+Each agent-submitted PR is reviewed by BugBot
+Comments include test status, logic flags, and best practices
+Appears inline in the PR and in Cursor interface
+✅ 6.2 Optional: Run manual review agent
+Spawn a new Background Agent with:
+
+1. Checkout PR #123  
+2. Run tests  
+3. If coverage < 90% or test fails, comment inline  
+4. Approve PR if clean
+Cursor does not yet support full auto-approval → merging is still manual (or via GitHub rules).
+
+✅ 6.3 “Fix in Cursor” Button
+Appears inside the Cursor IDE only when BugBot flags an issue.
+
+Clicking it brings you to the exact diff and opens a rewrite prompt.
+🧼 STEP 7: CLEAN-UP & DAILY RESET
+
+✅ 7.1 Merge and clean branches
+After approval, use GitHub’s merge UI or gh pr merge
+Cursor will delete the agent’s branch automatically if configured
+✅ 7.2 Archive daily task logs
+Rename your external tasks.md to tasks-2025-07-03.md for history tracking
+🧭 OPTIONAL DAILY SCHEDULE TEMPLATE
+
+Time	Action
+08:30	Write daily task prompts + goals
+09:00	Spawn agents and queue tasks
+09:15–12:00	Cursor builds, tests, retries
+12:00	BugBot reviews PRs
+13:00	Manual or agent PR review
+14:00–17:00	Queue next feature set
+17:00–18:00	PR merge, cleanup, planning for next day

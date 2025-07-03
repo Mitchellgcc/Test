@@ -1,0 +1,22 @@
+- Use TypeScript for all backend and frontend logic
+- Avoid editing any files in /legacy or /vendor
+- Always generate unit and integration tests with new features
+- Use async/await only, never .then()
+- Follow domain-driven naming conventions (e.g., loginController)
+- Keep directory well structured & well organised, build folders where necessary
+- Always add parseable terminal output to test runners:
+  - console.log("✅ TESTS PASSED") for success
+  - console.log("❌ TEST FAILURE") for failures
+- Run tests via pnpm test and show clear ✅ or ❌ status
+- Add extra logging during testing for maximum visibility
+- When tests fail, keep adding logging until issues are identified and fixed
+- Always check if a server/dev process is running before starting a new one
+- Use chat.completions.create for OpenAI API calls, not deprecated endpoints
+- For web projects: use dark mode, colorful DaisyUI, Tailwind, and anime.js
+- Include nice waiting animations for user-facing operations
+- Always run tests live unless specifically asked to mock
+- Value good arguments over authorities
+- Consider new technologies and contrarian ideas
+- Keep responses terse and accurate
+- Treat user as an expert
+- Suggest solutions that anticipate user needs 
