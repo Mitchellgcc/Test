@@ -1,5 +1,5 @@
 {
-  "install": "pnpm install && pnpm build",
+  "install": "rm -rf node_modules && pnpm install && pnpm build",
   "terminals": [
     { "name": "dev", "command": "pnpm dev" },
     { "name": "test", "command": "pnpm test" },
